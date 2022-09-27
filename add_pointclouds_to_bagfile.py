@@ -62,7 +62,6 @@ if __name__ == '__main__':
     import rospy
     import rosbag
     import sensor_msgs.msg
-    import cv
     from cv_bridge import CvBridge, CvBridgeError
     import struct
     import tf
@@ -70,17 +69,17 @@ if __name__ == '__main__':
     if not args.outputbag:
         args.outputbag = os.path.splitext(args.inputbag)[0] + "-points.bag"
       
-    print "Processing bag file:"
-    print "  in:",args.inputbag
-    print "  out:",args.outputbag
-    print "  starting from: %s seconds"%(args.start)
+    print ("Processing bag file:")
+    print ("  in:",args.inputbag)
+    print ("  out:",args.outputbag)
+    print ("  starting from: %s seconds"%(args.start))
         
     if args.duration:
-        print "  duration: %s seconds"%(args.duration)
+        print ("  duration: %s seconds"%(args.duration))
         
-    print "  saving every %s-th frame"%(args.nth)
+    print ("  saving every %s-th frame"%(args.nth))
     args.skip = float(args.skip)
-    print "  skipping %s blocks"%(args.skip)
+    print ("  skipping %s blocks"%(args.skip))
 
     inbag = rosbag.Bag(args.inputbag,'r')
     if args.compress:
@@ -109,7 +108,7 @@ if __name__ == '__main__':
             continue
         if args.duration and (t - time_start > rospy.Duration.from_sec(float(args.start) + float(args.duration))):
             break
-        print "t=%f\r"%(t-time_start).to_sec(),
+        print ("t=%f\r"%(t-time_start).to_sec()),
         if topic == "/tf":
             for transform in msg.transforms:
                 transforms[ (transform.header.frame_id,transform.child_frame_id) ] = transform
