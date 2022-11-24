@@ -1,0 +1,35 @@
+----------the 1 train beginning-------------
+total train step is: 100, Loss: 2.0724964141845703
+total train step is: 200, Loss: 2.488459587097168
+total train step is: 300, Loss: 1.5693703889846802
+total train step is: 400, Loss: 1.4478671550750732
+total train step is: 500, Loss: 1.0719506740570068
+total train step is: 600, Loss: 2.0359432697296143
+total train step is: 700, Loss: 1.337022304534912
+total train step is: 800, Loss: 1.221541166305542
+total train step is: 900, Loss: 1.1684396266937256
+total train step is: 1000, Loss: 1.9540282487869263
+total train step is: 1100, Loss: 1.8334014415740967
+total train step is: 1200, Loss: 1.7654359340667725
+total train step is: 1300, Loss: 1.4270148277282715
+total train step is: 1400, Loss: 1.3942210674285889
+total train step is: 1500, Loss: 0.9695900678634644
+total train step is: 1600, Loss: 1.3684312105178833
+total train step is: 1700, Loss: 1.1219290494918823
+total train step is: 1800, Loss: 1.0453864336013794
+total train step is: 1900, Loss: 1.2126965522766113
+total train step is: 2000, Loss: 1.2026562690734863
+total train step is: 2100, Loss: 1.3081163167953491
+total train step is: 2200, Loss: 1.0787980556488037
+total train step is: 2300, Loss: 1.3765344619750977
+total train step is: 2400, Loss: 1.4020729064941406
+total train step is: 2500, Loss: 1.378270149230957
+total train step is: 2600, Loss: 1.0740470886230469
+total train step is: 2700, Loss: 1.214584231376648
+total train step is: 2800, Loss: 1.3092164993286133
+total train step is: 2900, Loss: 1.3030040264129639
+total train step is: 3000, Loss: 0.8285231590270996
+total train step is: 3100, Loss: 0.9892637133598328
+Epoch: 1 Cost: 1.1705224514007568 Time: sec 99.42608189582825
+Finished Training
+Accuracy of the network on the test images: 60.41
