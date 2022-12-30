@@ -4,59 +4,58 @@ import numpy as np
 import os
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
-import torchvision
+import cv2
 import torchvision.transforms as transforms
 import torch.optim as optim
 import time
 from torch.utils.tensorboard import SummaryWriter
 
-transform_train = transforms.Compose(
-    [
-     transforms.RandomHorizontalFlip(),
-     #transforms.RandomGrayscale(),
-     transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-transform_val = transforms.Compose(
-    [
-     transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+transform_train = transforms.Compose([
+                                        transforms.RandomCrop(480),
+                                        transforms.RandomHorizontalFlip(),
+                                        #transforms.RandomHorizontalFlip(),
+                                        #transforms.RandomGrayscale(),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.5, 0.5, 0.5, 0.5), (0.5, 0.5, 0.5, 0.5))
+                                        ])
+
+transform_val = transforms.Compose([
+    
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                                        ])
 
 
-class MyDataSet(Dataset):
-    """自定义数据集"""
-    # def __init__(self, root,transform):
-    def __init__(self, root='../dataset/', transform=True):
-        self.root = root
-        
-        self.images_path = torch.tensor(np.load(os.path.join(root,"RGBD.npy")))
-        self.images_class = torch.tensor(np.load(os.path.join(root,"labels.npy")))
-        self.transform = transform
- 
-    def __len__(self):
-        return self.images_path.shape[0]  # 返回数据的总个数
-  
-    def __getitem__(self, index):
-        img = self.images_path[index, :, :]  # 读取每一个npy的数据
-        label = self.images_class[index]  # lesen jede npy
-        img = np.expand_dims(img, axis=0)
-        img = torch.Tensor(img)
-        img = torch.cat([img, img, img], dim=0)
-        ###############################################################################################################3
-        ###############################################################################################################3
-        label = label.type(torch.long)
- 
-        if self.transform is not None:
-            img = self.transform(img)
-        return img, label  # 返回数据还有标签
 
-class MyDataset(Dataset):
-    def __init__(self, root='../dataset/', transform=True):
-        self.train_data = np.load(os.path.join(root,"RGBD.npy")) #加载RGBD.npy数据
-        self.train_data = np.load(os.path.join(root,"labels.npy")) #加载RGBD.npy数据
-        self.transforms = transform_train #转为tensor形式
+
+class TrainDataset(Dataset):
+    def __init__(self, data_path='../dataset/', transform=True): # NYU-Depth_V2/train/
+        self.train_images = np.load(os.path.join(data_path,"RGBD.npy")) #加载RGBD.npy数据
+        self.train_labels = np.load(os.path.join(data_path,"labels.npy")) #加载RGBD.npy数据
+        # 查看图片与标签数量是否一致
+        assert len(self.train_images) == len(self.train_labels), 'Number does not match'
+        self.transforms = transform #转为tensor形式
+                
+        self.images_and_labels = []  # 创建一个空列表
+        for i in range(len(self.train_images)):  # 往空列表里装东西，为了之后索引
+            self.images_and_labels.append(
+                (data_path + '/RGBD/' + self.train_images[i], data_path + '/labels/' + self.train_labels[i])
+            )
+
+
 
     def __getitem__(self, index):
+        # 读取数据
+        image_path, label_path = self.images_and_labels[index]
+        # 图像处理
+        image = cv2.imread(image_path)  # 读取图像,(H,W,C)
+        image = cv2.resize(image, (640, 640))  # 将图像尺寸变为 640*640
+        # 对标签进行处理，从而可以与结果对比，得到损失值
+        label = cv2.imread(label_path, 0)  # 读取标签，且为灰度图
+        label = cv2.resize(label, (640, 640))  # 将标签尺寸变为 224*224
+
+
         images= self.train_data[index, :, :, :]  # 读取每一个npy的数据
         # hdct = np.squeeze(hdct)  # 删掉一维的数据，就是把通道数这个维度删除
         # ldct = 2.5 * skimage.util.random_noise(hdct * (0.4 / 255), mode='poisson', seed=None) * 255 #加poisson噪声
@@ -67,27 +66,80 @@ class MyDataset(Dataset):
         return labels,images #返回数据还有标签
 
     def __len__(self):
-        return self.train_data.shape[0] #返回数据的总个数
+        return self.train_images.shape[0] #返回数据的总个数
+\
+
+
+
+class TestDataset(Dataset):
+    def __init__(self, data_path, transform=None):
+        self.test_images = os.listdir(data_path + '/images')
+        self.transform = transform
+        self.imgs = []
+        for i in range(len(self.images)):
+            # self.imgs.append(data_path + '/images/' + self.images[i])
+            self.imgs.append(os.path.join(data_path, 'images/', self.test_images[i]))
  
-    def main():
-        dataset=MyDataset('../dataset/')
-        train_data= DataLoader(dataset, batch_size=8, shuffle=True, pin_memory=True, num_workers=0)
+    def __getitem__(self, item):
+        img_path = self.imgs[item]
+        img = cv2.imread(img_path)
+        img = cv2.resize(img, (640, 640))
+ 
+        if self.transform is not None:
+            img = self.transform(img)
+        return img
+ 
+    def __len__(self):
+        return len(self.test_images)
+
     
-    if __name__ == '__main__':
-        main()
+if __name__ == '__main__':
+    img = cv2.imread('/home/hczhu/CNNlearn/dataset/NYU/nyu_images/10.jpg')
+    img = cv2.resize(img, (640, 640))
+    img=cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+    img2 = img / 255
+    cv2.imshow('pic1', img2)
+    cv2.waitKey()
+    print(img2)
 
+    img3 = img2.astype('uint8')
+    cv2.imshow('pic2', img3)
+    cv2.waitKey()
+    print(img3)
 
+    # 下面开始矩阵就变成了3维
+    hot1 = np.eye(2)[img3]  # 对标签矩阵的每个元素都做了编码，(0,1)背景元素，(1,0)目标元素
+    print(hot1)
+    print(hot1.ndim)
+    print(hot1.shape)  # (16,16,2) C=16,H=16,W=16
 
+    hot2 = np.array(list(map(lambda x: abs(x - 1), hot1))) # 变换一下位置。(1,0)背景元素，(0,1)目标元素
+    print(hot2)
+    print(hot2.ndim)
+    print(hot2.shape)  # (16,16,2) C=16,H=16,W=16
 
+    #hot3 = hot2.transpose(2, 0, 1)
+    #print(hot3)  # (C=2,H=16,W=16)
 
-trainloader = DataLoader(batch_size=16, shuffle=True, num_workers=0)
+'''
+Dataloader
+'''
+#TrainDataset="./"
+tensorform=torchvision.transforms.Compose([torchvision.transform.ToTesor()])
+img=tensorform(img)
+img=img.reshape(1,4,640,640)
+import torchvision
+trainloader = DataLoader(root=TrainDataset,batch_size=16, transform=torchvision.transforms.ToTensor(),shuffle=True, num_workers=0)
 
 testloader = DataLoader(batch_size=16, shuffle=False, num_workers=0)
 
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 
+
+'''
+CNN Modell 
+input 4 chanal RGBD
+'''
 
 class MyCNN(nn.Module):
 
@@ -120,7 +172,7 @@ class MyCNN(nn.Module):
 
 
     def train_model(self,device):
-        #creat optimizer
+        #creat optimizerimages
         optimizer = optim.Adam(self.parameters(), lr=0.001)
         #initial epoch parameter
         initepoch = 1
@@ -138,7 +190,7 @@ class MyCNN(nn.Module):
             running_loss = 0.0
             total_train_step = 0
             
-            for data in MyDataset(trainloader):
+            for data in TrainDataset(trainloader):
                 imgs, labels = data
                 imgs, labels = imgs.to(device),labels.to(device)  #using CUDA
                 #print(imgs.shape)
@@ -150,11 +202,12 @@ class MyCNN(nn.Module):
                 l.backward()
                 optimizer.step()
                 total_train_step +=1
+                running_loss =+ train_loss
                 if total_train_step % 100 == 0:
-                    print('total train step is: {}, Loss: {}'.format(total_train_step,train_loss))
-                    writer.add_scalar("train_loss", train_loss, total_train_step)
+                    print('total train step is: {}, Loss: {}'.format(total_train_step,running_loss))
+                    writer.add_scalar("train_loss", running_loss, total_train_step)
 
-            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, train_loss, time.time()-timestart))
+            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, running_loss, time.time()-timestart))
         print('Finished Training')
         writer.close()
 
@@ -178,6 +231,9 @@ class MyCNN(nn.Module):
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 mymodel = MyCNN()
+x=torch.range(0,64*4).view(1,4,8,8)
+result=mymodel.forward(img)
+
 mymodel = mymodel.to(device)
 mymodel.train_model(device)
 mymodel.model_eval(device)
