@@ -17,8 +17,8 @@ import torch.autograd as autograd
 torch.manual_seed(1)  # reproducible
 
 """Hyper Parameter"""
-batchsize = 4
-learning_rate = 0.0001
+batchsize = 2
+learning_rate = 0.00001
 #set total epoch
 totalepoch = 5
 
@@ -50,7 +50,7 @@ class train_Dataset(Dataset.Dataset):
         return len(self.data)
     #得到数据内容和标签
     def __getitem__(self, index):
-        RGBD = torch.Tensor( self.data[index]/255)
+        RGBD = torch.Tensor( self.data[index])
         RGBDLabels = torch.IntTensor(self.label[index])
         return RGBD, RGBDLabels
  
@@ -70,101 +70,49 @@ class eval_Dataset(Dataset.Dataset):
         return len(self.data)
     #得到数据内容和标签
     def __getitem__(self, index):
-        RGBD = torch.Tensor(self.data[index]/255)
+        RGBD = torch.Tensor(self.data[index])
         RGBDLabels = torch.IntTensor(self.label[index])
         return RGBD, RGBDLabels
  
 
 '''CNN Modell'''
 in_dim = len(trainRGBD[1]) #
-# from Model.YOLO import Conv1x1BNReLU, Conv3x3BNReLU
+from Model.YOLOv3 import Conv1x1BNReLU, Conv3x3BNReLU, Residual
 
-# class YOLO(nn.Module):
-#     def __init__(self):
-#         super(YOLO, self).__init__()
+class Darknet19(nn.Module):
+    def __init__(self, num_classes=894):
+        super(Darknet19, self).__init__()
+        self.first_conv = Conv3x3BNReLU(in_channels=4, out_channels=32)
 
-#         self.features = nn.Sequential(
-#             nn.Conv2d(in_channels=4,out_channels=64, kernel_size=7,stride=2,padding=3),
-#             nn.MaxPool2d(kernel_size=2,stride=2),
-#             Conv3x3BNReLU(in_channels=64, out_channels=192),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=192, out_channels=128),
-#             Conv3x3BNReLU(in_channels=128, out_channels=256),
-#             Conv1x1BNReLU(in_channels=256, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels=1024),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=1024, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels= 1024),
-#             Conv1x1BNReLU(in_channels=1024, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024, stride=2),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#         )
+        self.block1 = self._make_layers(in_channels=32,out_channels=64, block_num=1)
+        self.block2 = self._make_layers(in_channels=64,out_channels=128, block_num=2)
+        self.block3 = self._make_layers(in_channels=128,out_channels=256, block_num=8)
+        self.block4 = self._make_layers(in_channels=256,out_channels=512, block_num=8)
+        self.block5 = self._make_layers(in_channels=512,out_channels=1024, block_num=4)
 
-#         self.classifier = nn.Sequential(
-#             nn.Linear(1024*10*8, 4096),
-#             nn.ReLU(True),
-#             nn.Dropout(),
-#             nn.Linear(4096, 894),
-#         )
+        self.avg_pool = nn.AvgPool2d(kernel_size=(20,15),stride=1)
+        self.linear = nn.Linear(in_features=1024,out_features=num_classes)
+        self.softmax = nn.Softmax(dim=1)
 
-#     def forward(self, x):
-#         x = self.features(x)
-#         x = x.view(x.size(0), -1)
-#         out = self.classifier(x)
-#         return out
+    def _make_layers(self, in_channels,out_channels, block_num):
+        _layers = []
+        _layers.append(Conv3x3BNReLU(in_channels=in_channels, out_channels=out_channels, stride=2))
+        for _ in range(block_num):
+            _layers.append(Residual(nchannels=out_channels))
+        return nn.Sequential(*_layers)
 
-class MyCNN(nn.Module):
-    def __init__(self, in_dim, n_class):
-        super(MyCNN, self).__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(in_dim,32,3,1,1),      # 1st conv，in_channels:4，out_channels:32，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 1st Max Pooling
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),         
-            
-            nn.Conv2d(32,64,3,1,1),     # 2nd conv，in_channels:32，out_channels:64，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 2nd Max Pooling
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
-            
-            nn.Conv2d(64,128,3,1,1),    # 3rd conv，in_channels:64，out_channels:128，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 3rd Max Pooling
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
-            
-            # nn.Conv2d(256,512,3,1,1),    # 3rd conv，in_channels:64，out_channels:128，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            # nn.MaxPool2d(2),            # 3rd Max Pooling
-            # nn.BatchNorm2d(512),
-            # nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
+    def forward(self, x):
+        x = self.first_conv(x)
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
 
-            nn.Flatten(),
-            nn.Linear(80*60*128,1),    # 1st fc with linear，in_features:80×80×128，out_features:64
-            # nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5, inplace=False),
-            nn.Linear(1, n_class),          # 2nd fc with linear，in_features:64，out_features:10
-            # nn.Softmax(dim=1)
-        )
-
-    def forward(self,x):                # forward function to get the output of CNN, reference
-        out = self.model(x)
+        x = self.avg_pool(x)
+        x = x.view(x.size(0),-1)
+        x = self.linear(x)
+        out = self.softmax(x)
         return out
 
     # out_dir = "./checkpoints/"
@@ -177,6 +125,7 @@ class MyCNN(nn.Module):
         #creat optimizerimages
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         #creat loss function
+        #loss_func = nn.BCEWithLogitsLoss()
         loss_func = nn.CrossEntropyLoss()
         #creat tensorboard SummaryWriter
         writer = SummaryWriter("./logs_train")
@@ -230,24 +179,28 @@ class MyCNN(nn.Module):
                 # print(total.shape)
                 correct += (predicted == labels).sum().item()
                 # print(correct.shape)
-                if total_train_step % 5 == 0:
-                    print('---Epoch: {}----total train step is: {}, Loss: {}, Train Acc = {}%'.format(epoch+1, total_train_step,train_loss, 100. * correct / total))
-                    writer.add_scalar("train_loss", train_loss, total_train_step)   
+                train_acc = 100. * correct / total
+                if total_train_step % 10 == 0:
+                    print('---Epoch: {}----total train step is: {}, Loss: {}, Train Acc = {}%'.format(epoch+1, total_train_step,train_loss, train_acc))
+                    writer.add_scalar("train_loss", train_loss, total_train_step)
+                    writer.add_scalar("train_acc", train_acc, total_train_step)   
 
-            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, train_loss, time.time()-timestart))
             
-            acc_val = 100.0 * correct / total
-            val_acc_list.append(acc_val)
-            if acc_val == max(val_acc_list):
+            
+            val_acc_list.append(train_acc)
+            if train_acc > max(val_acc_list):
                 torch.save(mymodel.state_dict(),"best.pt")
-                print("------------save a best Model------------")
-            torch.save(mymodel.state_dict(),"last.pt")
+                print("------------save a best Model--Best ACC:{}------------".format(max(val_acc_list)))
+            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, train_loss, time.time()-timestart))
 
         print('Finished Training')
+        torch.save(mymodel.state_dict(),"last.pt")
+        print("------------save a last Model------------")
         writer.close()
        
     """ Eval function""" 
     def model_eval(self,device):
+        print(' Evaluation Beginning: \n')
         correct_predict = 0
         total_predict = 0
                    
@@ -282,8 +235,8 @@ if __name__ == '__main__':
 
     device = torch.device("cuda:0")
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # mymodel = YOLO()   
-    mymodel = MyCNN(in_dim, n_class=894)
+    mymodel = Darknet19()   
+    # mymodel = MyCNN(in_dim, n_class=894)
     # result=mymodel.forward(train_dataset)
     mymodel = mymodel.to(device)
     mymodel.train_model(device)

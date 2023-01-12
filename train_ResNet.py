@@ -17,8 +17,8 @@ import torch.autograd as autograd
 torch.manual_seed(1)  # reproducible
 
 """Hyper Parameter"""
-batchsize = 4
-learning_rate = 0.0001
+batchsize = 2
+learning_rate = 0.00001
 #set total epoch
 totalepoch = 5
 
@@ -50,7 +50,7 @@ class train_Dataset(Dataset.Dataset):
         return len(self.data)
     #得到数据内容和标签
     def __getitem__(self, index):
-        RGBD = torch.Tensor( self.data[index]/255)
+        RGBD = torch.Tensor( self.data[index])
         RGBDLabels = torch.IntTensor(self.label[index])
         return RGBD, RGBDLabels
  
@@ -70,102 +70,60 @@ class eval_Dataset(Dataset.Dataset):
         return len(self.data)
     #得到数据内容和标签
     def __getitem__(self, index):
-        RGBD = torch.Tensor(self.data[index]/255)
+        RGBD = torch.Tensor(self.data[index])
         RGBDLabels = torch.IntTensor(self.label[index])
         return RGBD, RGBDLabels
  
 
 '''CNN Modell'''
 in_dim = len(trainRGBD[1]) #
-# from Model.YOLO import Conv1x1BNReLU, Conv3x3BNReLU
+from Model.ResNet import Conv1, Bottleneck
 
-# class YOLO(nn.Module):
-#     def __init__(self):
-#         super(YOLO, self).__init__()
+class ResNet(nn.Module):
+    def __init__(self,blocks, num_classes=894, expansion = 4):
+        super(ResNet,self).__init__()
+        self.expansion = expansion
 
-#         self.features = nn.Sequential(
-#             nn.Conv2d(in_channels=4,out_channels=64, kernel_size=7,stride=2,padding=3),
-#             nn.MaxPool2d(kernel_size=2,stride=2),
-#             Conv3x3BNReLU(in_channels=64, out_channels=192),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=192, out_channels=128),
-#             Conv3x3BNReLU(in_channels=128, out_channels=256),
-#             Conv1x1BNReLU(in_channels=256, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=256),
-#             Conv3x3BNReLU(in_channels=256, out_channels=512),
-#             Conv1x1BNReLU(in_channels=512, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels=1024),
-#             nn.MaxPool2d(kernel_size=2, stride=2),
-#             Conv1x1BNReLU(in_channels=1024, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels= 1024),
-#             Conv1x1BNReLU(in_channels=1024, out_channels=512),
-#             Conv3x3BNReLU(in_channels=512, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024, stride=2),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#             Conv3x3BNReLU(in_channels=1024, out_channels=1024),
-#         )
+        self.conv1 = Conv1(in_planes = 4, places= 64)
 
-#         self.classifier = nn.Sequential(
-#             nn.Linear(1024*10*8, 4096),
-#             nn.ReLU(True),
-#             nn.Dropout(),
-#             nn.Linear(4096, 894),
-#         )
+        self.layer1 = self.make_layer(in_places = 64, places= 64, block=blocks[0], stride=1)
+        self.layer2 = self.make_layer(in_places = 256,places=128, block=blocks[1], stride=2)
+        self.layer3 = self.make_layer(in_places=512,places=256, block=blocks[2], stride=2)
+        self.layer4 = self.make_layer(in_places=1024,places=512, block=blocks[3], stride=2)
 
-#     def forward(self, x):
-#         x = self.features(x)
-#         x = x.view(x.size(0), -1)
-#         out = self.classifier(x)
-#         return out
+        self.avgpool = nn.AvgPool2d((20,15), stride=1)
+        self.fc = nn.Linear(2048,num_classes)
 
-class MyCNN(nn.Module):
-    def __init__(self, in_dim, n_class):
-        super(MyCNN, self).__init__()
-        self.model = nn.Sequential(
-            nn.Conv2d(in_dim,32,3,1,1),      # 1st conv，in_channels:4，out_channels:32，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 1st Max Pooling
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),         
-            
-            nn.Conv2d(32,64,3,1,1),     # 2nd conv，in_channels:32，out_channels:64，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 2nd Max Pooling
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
-            
-            nn.Conv2d(64,128,3,1,1),    # 3rd conv，in_channels:64，out_channels:128，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            nn.MaxPool2d(2),            # 3rd Max Pooling
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
-            
-            # nn.Conv2d(256,512,3,1,1),    # 3rd conv，in_channels:64，out_channels:128，conv_size:3×3，padding:1，dilation:1 (without Dilated Conv)
-            # nn.MaxPool2d(2),            # 3rd Max Pooling
-            # nn.BatchNorm2d(512),
-            # nn.LeakyReLU(),
-            # nn.Dropout(p=0.7, inplace=False),
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
-            nn.Flatten(),
-            nn.Linear(80*60*128,1),    # 1st fc with linear，in_features:80×80×128，out_features:64
-            # nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5, inplace=False),
-            nn.Linear(1, n_class),          # 2nd fc with linear，in_features:64，out_features:10
-            # nn.Softmax(dim=1)
-        )
+    def make_layer(self, in_places, places, block, stride):
+        layers = []
+        layers.append(Bottleneck(in_places, places,stride, downsampling =True))
+        for i in range(1, block):
+            layers.append(Bottleneck(places*self.expansion, places))
 
-    def forward(self,x):                # forward function to get the output of CNN, reference
-        out = self.model(x)
-        return out
+        return nn.Sequential(*layers)
+
+
+    def forward(self, x):
+        x = self.conv1(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+
 
     # out_dir = "./checkpoints/"
     # if not os.path.exists(out_dir):
@@ -177,6 +135,7 @@ class MyCNN(nn.Module):
         #creat optimizerimages
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         #creat loss function
+        #loss_func = nn.BCEWithLogitsLoss()
         loss_func = nn.CrossEntropyLoss()
         #creat tensorboard SummaryWriter
         writer = SummaryWriter("./logs_train")
@@ -230,24 +189,28 @@ class MyCNN(nn.Module):
                 # print(total.shape)
                 correct += (predicted == labels).sum().item()
                 # print(correct.shape)
-                if total_train_step % 5 == 0:
-                    print('---Epoch: {}----total train step is: {}, Loss: {}, Train Acc = {}%'.format(epoch+1, total_train_step,train_loss, 100. * correct / total))
-                    writer.add_scalar("train_loss", train_loss, total_train_step)   
+                train_acc = 100. * correct / total
+                if total_train_step % 10 == 0:
+                    print('---Epoch: {}----total train step is: {}, Loss: {}, Train Acc = {}%'.format(epoch+1, total_train_step,train_loss, train_acc))
+                    writer.add_scalar("train_loss", train_loss, total_train_step)
+                    writer.add_scalar("train_acc", train_acc, total_train_step)   
 
-            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, train_loss, time.time()-timestart))
             
-            acc_val = 100.0 * correct / total
-            val_acc_list.append(acc_val)
-            if acc_val == max(val_acc_list):
+            
+            val_acc_list.append(train_acc)
+            if train_acc > max(val_acc_list):
                 torch.save(mymodel.state_dict(),"best.pt")
-                print("------------save a best Model------------")
-            torch.save(mymodel.state_dict(),"last.pt")
+                print("------------save a best Model--Best ACC:{}------------".format(max(val_acc_list)))
+            print("Epoch: {} Cost: {} Time: sec {}".format(epoch+1, train_loss, time.time()-timestart))
 
         print('Finished Training')
+        torch.save(mymodel.state_dict(),"last.pt")
+        print("------------save a last Model------------")
         writer.close()
        
     """ Eval function""" 
     def model_eval(self,device):
+        print(' Evaluation Beginning: \n')
         correct_predict = 0
         total_predict = 0
                    
@@ -274,7 +237,6 @@ if __name__ == '__main__':
     #creat train_DataLoader
     train_dataset = train_Dataset(trainRGBD, train_Labels)
     trainloader = DataLoader.DataLoader(train_dataset, batch_size= batchsize, shuffle = True, num_workers= 4)
-
     #creat eval_DataLoader
     eval_dataset = eval_Dataset(evalRGBD, eval_Labels)
     evalloader = DataLoader.DataLoader(eval_dataset, batch_size= batchsize, shuffle = False, num_workers= 4)
@@ -282,8 +244,17 @@ if __name__ == '__main__':
 
     device = torch.device("cuda:0")
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # mymodel = YOLO()   
-    mymodel = MyCNN(in_dim, n_class=894)
+    def ResNet50():
+        return ResNet([3, 4, 6, 3])
+
+    def ResNet101():
+        return ResNet([3, 4, 23, 3])
+
+    def ResNet152():
+        return ResNet([3, 8, 36, 3])
+    
+    mymodel = ResNet152()   
+    # mymodel = MyCNN(in_dim, n_class=894)
     # result=mymodel.forward(train_dataset)
     mymodel = mymodel.to(device)
     mymodel.train_model(device)
