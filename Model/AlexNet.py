@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision
 
 class AlexNet(nn.Module):
-    def __init__(self,num_classes=1000):
+    def __init__(self,num_classes=894):
         super(AlexNet,self).__init__()
         self.feature_extraction = nn.Sequential(
             nn.Conv2d(in_channels=4,out_channels=96,kernel_size=11,stride=4,padding=2,bias=False),
@@ -22,14 +22,14 @@ class AlexNet(nn.Module):
         )
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
-            nn.Linear(in_features=256*6*6,out_features=4096),
+            nn.Linear(in_features=256*12*12,out_features=4096),
             nn.Dropout(p=0.5),
             nn.Linear(in_features=4096, out_features=4096),
             nn.Linear(in_features=4096, out_features=num_classes),
         )
     def forward(self,x):
         x = self.feature_extraction(x)
-        x = x.view(x.size(0),256*6*6)
+        x = x.view(x.size(0),256*13*13)
         x = self.classifier(x)
         return x
 
@@ -39,6 +39,6 @@ if __name__ =='__main__':
     model = AlexNet()
     print(model)
 
-    input = torch.randn(1,4,224,224)
+    input = torch.randn(1,4,448,448)
     out = model(input)
     print(out.shape)

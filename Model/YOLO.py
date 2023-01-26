@@ -51,10 +51,10 @@ class YOLO(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(1024 * 7 * 7, 4096),
+            nn.Linear(1024*10*8, 4096),
             nn.ReLU(True),
             nn.Dropout(),
-            nn.Linear(4096, 1470),
+            nn.Linear(4096, 894),
         )
 
     def forward(self, x):
@@ -68,6 +68,6 @@ if __name__ == '__main__':
     model = YOLO()
     print(model)
 
-    data = torch.randn(2,4,448,448)
+    data = torch.randn(1,4,640,480)
     output = model(data)
     print(output.shape)

@@ -1,4 +1,4 @@
-#sim CNN Modell
+#YOLO-Nano Modell
 import torch
 import torch.nn as nn
 import torchvision
@@ -179,13 +179,16 @@ class YOLO_Nano(nn.Module):
         out1 = self.out_stage1(torch.cat([x1,x7], dim=1))
         out2 = self.out_stage2(x6)
         out3 = self.out_stage3(x4)
+        # out = torch.cat([out1,out2,out3])
         return out1, out2, out3
 
 if __name__ == '__main__':
     model = YOLO_Nano()
     print(model)
 
-    input = torch.randn(2,4,640,480)
+    input = torch.randn(1,4,640,480)
+    # output = model(input)
+    # print(output.shape)
     output1,output2,output3  = model(input)
     print(output1.shape)
     print(output2.shape)

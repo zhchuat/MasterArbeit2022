@@ -24,18 +24,18 @@ class Sim_CNN(nn.Module):
             nn.SiLU(),
             
             nn.Flatten(),
-            nn.Linear(80*80*128,64),    # 1st fc with linear，in_features:80×80×128，out_features:64
-            nn.Linear(64, 10),          # 2nd fc with linear，in_features:64，out_features:10
+            nn.Linear(80*60*128,64),    # 1st fc with linear，in_features:80×80×128，out_features:64
+            nn.Linear(64, 894),          # 2nd fc with linear，in_features:64，out_features:10
         )
 
     def forward(self,x):                # forward function to get the output of CNN, reference
-        self.model(x)
-        return self.model(x)
-
+        out = self.model(x)
+        return out
+        
 cnn = Sim_CNN()
 # #model testing
-input = torch.ones((8,4,640,640))
+print(cnn)
+input = torch.ones((2,4,640,480))
 print(input.shape)
 output = cnn(input)
 print(output.shape)
-print(cnn)
