@@ -2,6 +2,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def initialize_weights(*models):
+    for model in models:
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight, mode='fan_out',nonlinearity='relu')
+                # nn.init.kaiming_normal(module.weight)
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm2d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()
+
 def ConvBNReLU(in_channels,out_channels,kernel_size,stride,padding,dilation=[1,1],groups=1):
     return nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding,dilation=dilation,groups=groups, bias=False),
@@ -79,6 +91,7 @@ class SS_nbt(nn.Module):
         )
 
         self.channelShuffle = ChannelShuffle(groups)
+        initialize_weights(self.first_bottleneck,self.second_bottleneck)
 
     def forward(self, x):
         x1, x2 = self.half_split(x)
@@ -93,11 +106,12 @@ class DownSampling(nn.Module):
         super(DownSampling, self).__init__()
         mid_channels = out_channels - in_channels
 
-        self.conv = nn.Conv2d(in_channels=in_channels,out_channels=mid_channels,kernel_size=3,stride=2,padding=1)
+        self.conv = nn.Conv2d(in_channels=in_channels,out_channels=mid_channels,kernel_size=3,stride=2,padding=1, bias=False)
         self.maxpool = nn.MaxPool2d(kernel_size=3,stride=2, padding=1)
 
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
+        initialize_weights(self.conv)
 
     def forward(self, x):
         x1 = self.conv(x)
@@ -125,7 +139,7 @@ class Encoder(nn.Module):
             SS_nbt(channels=planes[2], dilation=9, groups=groups),
             SS_nbt(channels=planes[2], dilation=17, groups=groups),
         )
-
+        initialize_weights(self.ssBlock1,self.ssBlock2,self.ssBlock3)
     def _make_layer(self, channels, dilation, groups, block_num):
         layers = []
         for idx in range(block_num):
@@ -166,8 +180,9 @@ class APN(nn.Module):
 
         self.branch3 = nn.Sequential(
             nn.AdaptiveAvgPool2d(output_size=1),
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels,kernel_size=1, stride=1,padding=0),
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels,kernel_size=1, stride=1,padding=0, bias=False),
         )
+        # initialize_weights(self.conv1_1, self.conv1_2, self.conv2_1, self.conv2_2, self.conv3, self.conv1, self.branch2, self.branch3)
 
     def forward(self, x):
         _, _, h, w = x.shape
@@ -200,10 +215,11 @@ class Decoder(nn.Module):
 
 
 class LEDnet(nn.Module):
-    def __init__(self, num_classes=894):
+    def __init__(self, num_classes=38):
         super(LEDnet, self).__init__()
         self.encoder = Encoder()
         self.decoder = Decoder(in_channels=128,num_classes=num_classes)
+        
 
     def forward(self, x):
         x = self.encoder(x)
@@ -212,7 +228,7 @@ class LEDnet(nn.Module):
 
 
 if __name__ == '__main__':
-    model = LEDnet(num_classes=894)
+    model = LEDnet(num_classes=14)
     print(model)
 
     input = torch.randn(1,4,480,640)
